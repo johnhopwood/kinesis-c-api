@@ -152,6 +152,88 @@ char* makePutRecordPayload(const unsigned char *data, int len, const char *strea
 	return payload;
 }
 
+/**************************************************************************************************************************************************/
+/* Creates JSON payload per http://docs.aws.amazon.com/kinesis/latest/APIReference/API_PutRecordsRequestEntry.html . Caller frees returned buffer */
+/**************************************************************************************************************************************************/
+char* makePutRecordsRequestEntry(const unsigned char *data, int len, const char *partitionKey){
+
+	static const char *template =
+		"{"	
+		"\"PartitionKey\":\"%s\","
+		"\"Data\":\"%s\""
+		"}";
+		
+	char *encData=base64Encode(data, len);
+	char *payload=(char*)malloct(strlen(template)+strlen(partitionKey)+strlen(encData) + 1);
+
+	sprintf(
+		payload,
+		template,
+		partitionKey,
+		encData
+		);
+
+	free(encData);
+
+	return payload;		
+}
+
+/***************************************************************************************************************************************/
+/* Creates JSON payload per http://docs.aws.amazon.com/kinesis/latest/APIReference/API_PutRecords.html . Caller frees returned buffer. */
+/***************************************************************************************************************************************/
+char* makePutRecordsPayload(const char *streamName, int recordCount, char * const *partitionKeyArray, unsigned char * const *dataArray, const int *lenArray){
+
+	static const char *templateStart =
+		"{"
+			"\"StreamName\": \"%s\","
+			"\"Records\": [";
+	
+	static const char *templateEnd =
+			"]"
+		"}";
+	
+	
+	char *payloadStart = (char*)malloct(strlen(streamName) + strlen(templateStart) + 1);
+	const char *payloadEnd = templateEnd;
+	
+	sprintf(
+		payloadStart,
+		templateStart,
+		streamName
+		);
+
+	int bufferSize=strlen(payloadStart) + strlen(payloadEnd) + 1;
+	
+	char **payloadEntry = malloct(recordCount * sizeof(char*));
+	
+	int i;
+	for(i=0; i<recordCount; i++){
+		
+		payloadEntry[i] = makePutRecordsRequestEntry(dataArray[i], lenArray[i], partitionKeyArray[i]);
+
+		bufferSize+=strlen(payloadEntry[i]) + 1;
+	}
+	
+	char *payload = malloct(bufferSize);
+	*payload='\0';
+	strcat(payload, payloadStart);
+	free(payloadStart);
+
+	for(i=0; i<recordCount; i++){
+		
+		if(i>0)
+			strcat(payload,",");
+		strcat(payload, payloadEntry[i]);
+		free(payloadEntry[i]);
+	}
+	
+	strcat(payload, payloadEnd);
+	
+	
+	return payload;
+}
+
+
 /******************************************************************************************************************************************/
 /* Creates JSON payload per http://docs.aws.amazon.com/kinesis/latest/APIReference/API_DescribeStream.html . Caller frees returned buffer */
 /******************************************************************************************************************************************/
@@ -556,6 +638,37 @@ int ktPutRecord(const AWSContext *ctx, const char *streamName, const char *parti
 	freeAWSHeaders(headers);
 	
 	return retcode;
+}
+
+/**************************************************/
+/* See comments in header file for kt* functions  */
+/**************************************************/
+int ktPutRecords(const AWSContext *ctx, const char *streamName, int recordCount, char * const *partitionKeyArray, unsigned char * const *dataArray, const int *lenArray, httpResponse *respHeader, httpResponse *respBody, char *errorMsg){
+
+	static const char *target = "Kinesis_20131202.PutRecords";
+	
+	/* make date strings */
+	char longDate[17], shortDate[9];
+	makeDateStrings(longDate, shortDate);
+
+	/* make payload */
+	char *payload = makePutRecordsPayload(streamName, recordCount, partitionKeyArray, dataArray, lenArray);
+	
+	/* make Authorization header */
+	char *authHeader = makeAuthHeader(ctx->key, ctx->keyId, longDate, shortDate, ctx->region, ctx->endpoint, payload);
+	
+	/* make all headers */
+	AWSHeaders *headers = makeAWSHeaders(authHeader, ctx->sessionToken, target, longDate);
+		
+	/* do the post */
+	int retcode = curlDoPost(ctx->url, headers, payload, respHeader, respBody, errorMsg);
+	
+	/* cleanup */
+	free(payload);
+	free(authHeader);
+	freeAWSHeaders(headers);
+	
+	return retcode;	
 }
 
 /**************************************************/

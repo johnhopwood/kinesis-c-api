@@ -6,14 +6,17 @@
 
 void printUsageThenExit(){	
 	printf(
-		"Usage: kt -L -k aws_key -i aws_key_id -r region -e endpoint [-t session_token]\n"
-		"       kt -D -k aws_key -i aws_key_id -r region -e endpoint [-t session_token]\n"
-		"         -s stream_name\n"
-		"       kt -P -k aws_key -i aws_key_id -r region -e endpoint [-t session_token]\n"
-		"         -s stream_name -p partition_key [-f filename] [-x text]\n\n"
-		"List Kinesis streams, describe a Kinesis stream or put data onto a Kinesis\n"
-		"stream from either a file or as text on the command line. Specify\n"
-		"a session_token if using temporary AWS credentials.\n\n"
+		"Usage:\n"
+		"  ktool -L -k aws_key -i aws_key_id -r region -e endpoint [-t session_token]\n"
+		"  ktool -D -k aws_key -i aws_key_id -r region -e endpoint [-t session_token]\n"
+		"        -s stream_name\n"
+		"  ktool -P -k aws_key -i aws_key_id -r region -e endpoint [-t session_token]\n"
+		"        -s stream_name -p partition_key [-f filename] [-x text]\n\n"
+		"  List Kinesis streams, describe a Kinesis stream or put data onto a Kinesis\n"
+		"  stream from file and/or text on the command line. Provide a session_token\n"
+		"  if using temporary AWS credentials. Specify a single -f or -x option to\n"
+		"  make ktool to use the single record action 'PutRecord' otherwise\n"
+		"  'PutRecords' will be used.\n\n"
 		);
 	
 	exit(1);
@@ -50,9 +53,12 @@ unsigned char *readFile(const char *fname, int *len){
 
 int main(int argc, char **argv){
 
-	char *key=NULL, *keyId=NULL, *sessionToken=NULL, *region=NULL, *endpoint=NULL, *streamName=NULL, *filename=NULL, *partitionKey=NULL, *text=NULL;
+	char *key=NULL, *keyId=NULL, *sessionToken=NULL, *region=NULL, *endpoint=NULL, *streamName=NULL;
 	char action=0;
 	int opt;
+	
+	char *filenames[255], *strings[255], *partitionKeys[255];
+	int filenameCount=0, stringCount=0, partitionKeyCount=0;
 	
 	/* parse command line */
 	while ((opt = getopt(argc, argv,"PLDk:i:t:r:e:s:f:x:p:")) != -1){
@@ -81,13 +87,13 @@ int main(int argc, char **argv){
 				streamName = optarg;
 				break;
 			case 'f':
-				filename = optarg;
+				filenames[filenameCount++] = optarg;
 				break;
 			case 'x':
-				text = optarg;
+				strings[stringCount++] = optarg;
 				break;
 			case 'p':
-				partitionKey = optarg;
+				partitionKeys[partitionKeyCount++] = optarg;
 				break;
 
 			default:
@@ -95,14 +101,16 @@ int main(int argc, char **argv){
 		}
 	}
 
-	/* ensure we have the right parameters for the requested action */
+	/* ensure we have the right parameters for all actions */
 	if(key == NULL || keyId == NULL || region == NULL || endpoint == NULL)
 		printUsageThenExit();
-	
-	if(action == 'P' && (streamName == NULL || partitionKey == NULL || (filename == NULL && text == NULL)))
+
+	/* test parameters for describe */
+	if(action == 'D' && streamName == NULL)
 		printUsageThenExit();
 	
-	if(action == 'D' && streamName == NULL)
+	/* test parameters for PutRecord(s) */
+	if(action == 'P' && (streamName == NULL || partitionKeyCount == 0 || filenameCount + stringCount == 0))
 		printUsageThenExit();
 	
 	/* make a context object */
@@ -120,19 +128,65 @@ int main(int argc, char **argv){
 	if(action == 'D')
 		retcode = ktDescribeStream(ctx, streamName, &respHeader, &respBody, errorMsg);
 
-	if(action == 'P'){
-		
-		if(text != NULL)
-			/* data from command line */
-			retcode = ktPutRecord(ctx, streamName, partitionKey, text, strlen(text), &respHeader, &respBody, errorMsg);
-		else {
-			/* data from file */
-			int len;
-			unsigned char *data = readFile(filename, &len);
-			retcode = ktPutRecord(ctx, streamName, partitionKey, data, len, &respHeader, &respBody, errorMsg);
-			free(data);
-		}
+	/* single record from command line*/
+	if(action == 'P' && stringCount == 1 && filenameCount == 0)
+		retcode = ktPutRecord(ctx, streamName, partitionKeys[0], strings[0], strlen(strings[0]), &respHeader, &respBody, errorMsg);
+
+	/* single record from file*/
+	if(action == 'P' && stringCount == 0 && filenameCount == 1){
+		int len;
+		unsigned char *data = readFile(filenames[0], &len);
+		retcode = ktPutRecord(ctx, streamName, partitionKeys[0], data, len, &respHeader, &respBody, errorMsg);
+		free(data);
 	}
+
+	/* multiple records */
+	if(action == 'P' && stringCount + filenameCount > 1){
+
+		/* create data structures to pass to ktPutRecords */
+		int recordCount = stringCount + filenameCount;
+		char **partitionKeyArray = malloc(recordCount * sizeof(char*));
+		unsigned char **dataArray = malloc(recordCount * sizeof(unsigned char*));
+		int *lenArray = malloc(recordCount * sizeof(int));
+		
+		int i;
+		/* add command line blobs */
+		for(i=0;i<stringCount;i++){
+			
+			dataArray[i]=strings[i];
+			lenArray[i]=strlen(strings[i]);
+		}
+		
+		/* add file records */
+		for(i=0;i<filenameCount;i++){
+			
+			int len;
+			dataArray[i+stringCount]=readFile(filenames[i], &len);
+			lenArray[i+stringCount]=len;
+		}
+		
+		/* add partition keys */
+		for(i=0;i<recordCount;i++){
+			
+			/* reuse the last partition key if there aren't enough */
+			if(i<partitionKeyCount)
+				partitionKeyArray[i]=partitionKeys[i];
+			else
+				partitionKeyArray[i]=partitionKeys[partitionKeyCount-1];
+		}
+		
+		retcode = ktPutRecords(ctx, streamName, recordCount, partitionKeyArray, dataArray, lenArray, &respHeader, &respBody, errorMsg);
+		
+		/* free memory allocated for file records */
+		for(i=stringCount; i<recordCount; i++)
+			free(dataArray[i]);
+		
+		/* cleanup */
+		free(partitionKeyArray);
+		free(dataArray);
+		free(lenArray);
+	}	
+	
 	
 	/* interpret result */
 	if(retcode == 0)
