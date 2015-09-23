@@ -4,7 +4,7 @@
 Tiny footprint, thread safe C API for posting data to AWS Kinesis, perfect for embedded and other resource constrained devices. Uses permanent or temporary AWS credentials. Includes ktool, a command line tool built using the C API. The library originally implemented the `PutRecord` action only, however `ListStreams` and `DescribeStream` were added to demonstrate extensibility (See Extending below). Turns out these are useful to have for testing connectivity / credential validity.
 
 ###Dependencies
-[OpenSSL](https://www.openssl.org/) for the two hash functions required to calculate AWS Signature version 4 (`SHA256` and `HMAC-SHA256`) and [libcurl](http://curl.haxx.se/libcurl/) for HTTPS transport layer. All Curl specific code is isolated in functions `curlDoPost` and `curlResponseCallback` in case this needs to be replaced.
+[OpenSSL](https://www.openssl.org/) for the two hash functions required to calculate AWS Signature version 4 (`SHA-256` and `HMAC-SHA256`) and [libcurl](http://curl.haxx.se/libcurl/) for HTTPS transport layer. All Curl specific code is isolated in functions `curlDoPost` and `curlResponseCallback` in case this needs to be replaced.
 Headers and libraries for both packages should be available on your *nix platform as libssl-dev and libcurl-dev or similar.
 
 ###Documentation
@@ -44,8 +44,8 @@ $ # describe stream "my-test-kinesis-stream"
 $ ktool -D -i "FAKE-AWS-KEYID" -k "FAKE-AWS-KEY" -r "us-east-1" -e "kinesis.us-east-1.amazonaws.com" -s "my-test-kinesis-stream"
 $ # put file "filename" on stream "my-test-kinesis-stream"
 $ ktool -P -i "FAKE-AWS-KEYID" -k "FAKE-AWS-KEY" -r "us-east-1" -e "kinesis.us-east-1.amazonaws.com" -s "my-test-kinesis-stream" -p "partition-key" -f filename
-$ # put "a blob of text" on stream "my-test-kinesis-stream" without a partition key
-$ ktool -P -i "FAKE-AWS-KEYID" -k "FAKE-AWS-KEY" -r "us-east-1" -e "kinesis.us-east-1.amazonaws.com" -s "my-test-kinesis-stream" -x "a blob of text"
+$ # put "a blob of text" on stream "my-test-kinesis-stream"
+$ ktool -P -i "FAKE-AWS-KEYID" -k "FAKE-AWS-KEY" -r "us-east-1" -e "kinesis.us-east-1.amazonaws.com" -s "my-test-kinesis-stream" -p "partition-key" -x "a blob of text"
 ```
 
 ###Extending

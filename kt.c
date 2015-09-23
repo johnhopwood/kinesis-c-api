@@ -123,9 +123,9 @@ char* base64Encode(const unsigned char *data, int len){
 	return data64;
 }
 
-/*******************************************************************************************************************************************************************************/
-/* Creates JSON payload per http://docs.aws.amazon.com/kinesis/latest/APIReference/API_PutRecord.html . Caller frees returned buffer. Set partitionKey to NULL if not required */
-/*******************************************************************************************************************************************************************************/
+/*************************************************************************************************************************************/
+/* Creates JSON payload per http://docs.aws.amazon.com/kinesis/latest/APIReference/API_PutRecord.html . Caller frees returned buffer */
+/*************************************************************************************************************************************/
 char* makePutRecordPayload(const unsigned char *data, int len, const char *streamName, const char *partitionKey){
 
 	static const char *template =
@@ -134,39 +134,18 @@ char* makePutRecordPayload(const unsigned char *data, int len, const char *strea
 		"\"PartitionKey\":\"%s\","
 		"\"Data\":\"%s\""
 		"}";
-		
-	static const char *templateNoPartKey =
-		"{"	
-		"\"StreamName\":\"%s\","
-		"\"Data\":\"%s\""
-		"}";
 	
 	char *encData=base64Encode(data, len);
-	char *payload;
 
-	if(partitionKey){
+	char *payload=(char*)malloct(strlen(template)+strlen(streamName)+strlen(partitionKey)+strlen(encData) + 1);
 
-		payload=(char*)malloct(strlen(template)+strlen(streamName)+strlen(partitionKey)+strlen(encData) + 1);
-
-		sprintf(
-			payload,
-			template,
-			streamName,
-			partitionKey,
-			encData
-			);
-	}
-	else{
-		
-		payload=(char*)malloct(strlen(templateNoPartKey)+strlen(streamName)+strlen(encData) + 1);
-
-		sprintf(
-			payload,
-			templateNoPartKey,
-			streamName,
-			encData
-			);
-	}
+	sprintf(
+		payload,
+		template,
+		streamName,
+		partitionKey,
+		encData
+		);
 
 	free(encData);
 

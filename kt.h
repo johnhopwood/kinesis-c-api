@@ -41,7 +41,6 @@ typedef struct{
 
 int ktListStreams(const AWSContext *ctx, httpResponse *respHeader, httpResponse *respBody, char *errorMsg);
 int ktDescribeStream(const AWSContext *ctx, const char *streamName, httpResponse *respHeader, httpResponse *respBody, char *errorMsg);
-/* set partitionKey to NULL if not required */
 int ktPutRecord(const AWSContext *ctx, const char *streamName, const char *partitionKey, const unsigned char *data, int len, httpResponse *respHeader, httpResponse *respBody, char *errorMsg);
 
 #ifdef __cplusplus

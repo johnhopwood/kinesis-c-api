@@ -10,7 +10,7 @@ void printUsageThenExit(){
 		"       kt -D -k aws_key -i aws_key_id -r region -e endpoint [-t session_token]\n"
 		"         -s stream_name\n"
 		"       kt -P -k aws_key -i aws_key_id -r region -e endpoint [-t session_token]\n"
-		"         -s stream_name [-p partition_key] [-f filename] [-x text]\n\n"
+		"         -s stream_name -p partition_key [-f filename] [-x text]\n\n"
 		"List Kinesis streams, describe a Kinesis stream or put data onto a Kinesis\n"
 		"stream from either a file or as text on the command line. Specify\n"
 		"a session_token if using temporary AWS credentials.\n\n"
@@ -99,7 +99,7 @@ int main(int argc, char **argv){
 	if(key == NULL || keyId == NULL || region == NULL || endpoint == NULL)
 		printUsageThenExit();
 	
-	if(action == 'P' && (streamName == NULL || (filename == NULL && text == NULL)))
+	if(action == 'P' && (streamName == NULL || partitionKey == NULL || (filename == NULL && text == NULL)))
 		printUsageThenExit();
 	
 	if(action == 'D' && streamName == NULL)
