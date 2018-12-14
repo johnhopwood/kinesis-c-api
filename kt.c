@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <openssl/hmac.h>
 #include <openssl/evp.h>
+#include <openssl/sha.h>
 #include <curl/curl.h>
 #include "kt.h"
 
@@ -266,7 +267,8 @@ char* makeListStreamsPayload(){
 
 	sprintf(
 		payload,
-		template
+		template,
+		""
 		);
 
 	return payload;
